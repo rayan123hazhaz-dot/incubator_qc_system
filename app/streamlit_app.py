@@ -248,6 +248,43 @@ def noise_status(value):
     return "FAIL"
 
 
+# ============================================================
+# ADDED: DEVICE PERFORMANCE EVALUATION
+# ============================================================
+
+def calculate_performance_score(temp_error, humidity_error, oxygen_error, airflow, noise):
+
+    temperature_score = max(0, 100 - (temp_error * 5))
+    humidity_score = max(0, 100 - (humidity_error * 3))
+    oxygen_score = max(0, 100 - (oxygen_error * 3))
+
+    airflow_score = 100 if AIRFLOW_MIN <= airflow <= AIRFLOW_MAX else 70
+    noise_score = 100 if noise <= NOISE_MAX else 70
+
+    score = (
+        temperature_score * 0.30 +
+        humidity_score * 0.20 +
+        oxygen_score * 0.25 +
+        airflow_score * 0.15 +
+        noise_score * 0.10
+    )
+
+    return round(score, 2)
+
+
+def performance_category(score):
+
+    if score >= 95:
+        return "★★★★★ Excellent Performance"
+    elif score >= 85:
+        return "★★★★ Very Good Performance"
+    elif score >= 70:
+        return "★★★ Acceptable Performance"
+    else:
+        return "Needs Improvement"
+
+
+
 def generate_recommendations(
     temp_status,
     humidity_status_value,
@@ -533,19 +570,47 @@ th {{
 
 </div>
 
-<h2>Test Information</h2>
+<h2>Device Information</h2>
 
 <div class="info">
 
-<p><b>Date:</b> {results["date"]}</p>
+<p><b>Manufacturer / Company:</b>
+{results.get("manufacturer", "Not Entered")}</p>
 
-<p><b>Device Age:</b> {results["device_age"]} years</p>
+
+<p><b>Incubator Model:</b>
+{results.get("model_name", "Not Entered")}</p>
+
+
+<p><b>Serial Number:</b>
+{results.get("serial_number", "Not Entered")}</p>
+
+
+<p><b>Manufacturing Year:</b>
+{results.get("manufacturing_year", "Not Entered")}</p>
+
+
+<p><b>Device Age:</b>
+{results["device_age"]} years</p>
+
 
 <p><b>Days Since Last Maintenance:</b>
 {results["maintenance_days"]}</p>
 
+
 <p><b>Previous Repairs:</b>
 {results["repair_history"]}</p>
+
+
+</div>
+
+
+<h2>Test Information</h2>
+
+<div class="info">
+
+<p><b>Date:</b>
+{results["date"]}</p>
 
 </div>
 
@@ -569,15 +634,6 @@ th {{
 
 </table>
 
-
-<h2>Machine Learning Assessment</h2>
-
-<div class="info">
-
-<p><b>ML Result:</b>
-{html.escape(results["ml_label"])}</p>
-
-</div>
 
 
 <h2>Final Acceptance Decision</h2>
@@ -847,6 +903,42 @@ elif st.session_state.page == "Test":
     )
 
     st.subheader("Device Information")
+
+    # Added device identification
+
+    device1, device2 = st.columns(2)
+
+    with device1:
+
+        manufacturer = st.selectbox(
+            "Manufacturer / Company",
+            [
+                "Dräger",
+                "GE Healthcare",
+                "Atom",
+                "Fanem",
+                "Natus",
+                "Other"
+            ]
+        )
+
+        model_name = st.text_input(
+            "Incubator Model"
+        )
+
+    with device2:
+
+        serial_number = st.text_input(
+            "Serial Number"
+        )
+
+        manufacturing_year = st.number_input(
+            "Manufacturing Year",
+            min_value=1980,
+            max_value=2030,
+            value=2025
+        )
+
 
     info1, info2, info3 = st.columns(3)
 
@@ -1216,7 +1308,27 @@ elif st.session_state.page == "Test":
             decision_class = "rejected"
 
 
+        performance_score = calculate_performance_score(
+            temp_error,
+            humidity_error,
+            oxygen_error,
+            airflow,
+            noise_level
+        )
+
+        performance_class = performance_category(
+            performance_score
+        )
+
+
         st.session_state.test_results = {
+
+            "manufacturer": manufacturer,
+            "model_name": model_name,
+            "serial_number": serial_number,
+            "manufacturing_year": manufacturing_year,
+            "performance_score": performance_score,
+            "performance_class": performance_class,
 
             "date": datetime.now().strftime(
                 "%Y-%m-%d %H:%M"
@@ -1348,29 +1460,24 @@ elif st.session_state.page == "Test":
         )
 
 
+        
         # ----------------------------------------------------
-        # ML RESULT
+        # PERFORMANCE EVALUATION
         # ----------------------------------------------------
 
-        st.subheader("🤖 Machine Learning Assessment")
+        st.subheader("📈 Device Performance Evaluation")
 
-        if results["ml_error"] is None:
+        st.metric(
+            "Overall Performance Score",
+            f"{results.get('performance_score', 0)}%"
+        )
 
-            st.info(
-                f"Machine Learning Result: "
-                f"**{results['ml_label']}**"
+        st.info(
+            results.get(
+                "performance_class",
+                "Not Available"
             )
-
-        else:
-
-            st.warning(
-                "Machine learning supporting analysis could "
-                "not be completed."
-            )
-
-            st.caption(
-                results["ml_error"]
-            )
+        )
 
 
         # ----------------------------------------------------
